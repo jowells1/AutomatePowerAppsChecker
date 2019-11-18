@@ -287,10 +287,11 @@ else
 foreach($solution in $solutions.CrmRecords)
 {
     $sName = $solution.friendlyname
+    $sVersion = ($solution.version).Replace(".", "_")
     Write-Host "Attempting to export "$sName
     try
     {
-        $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.friendlyname -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName".zip"
+        $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.friendlyname -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName"_"$sVersion".zip"
     }
     catch
     {
