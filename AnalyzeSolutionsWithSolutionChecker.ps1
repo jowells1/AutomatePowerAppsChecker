@@ -338,7 +338,7 @@ foreach($file in $files)
         Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
 
         # Send the solution to PowerApps Checker for analysis  
-        $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysis $file.FullName -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $secureAppSecret
+        $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysis $file.FullName -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $appSecret
 
         Write-Host ("{0}{1}" -f "Analysis completed for ", $file.BaseName)
 
