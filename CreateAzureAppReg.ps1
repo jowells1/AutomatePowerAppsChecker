@@ -48,13 +48,18 @@ if(!($myApp = Get-AzureADApplication -Filter "DisplayName eq '$($appName)'"  -Er
 {
     try
     {
-        # Creates AzureADApp for PowerAppsChecker
-        $myApp = New-AzureADApplication -DisplayName $appName -ReplyUrls $replyURL -PublicClient $true
+        #Adding PowerApps Advisor API Oauth2permissions to the newly created app
+        $requiredResources = New-Object -TypeName "Microsoft.Open.AzureAD.Model.RequiredResourceAccess"
         
-        # Create a new Service Principal for the App just created
-        $mySP = New-AzureADServicePrincipal -AppId $myApp.AppId
-                New-AzureADServiceAppRoleAssignment -ObjectId $mySp.ObjectId -PrincipalId $mySp.ObjectId -ResourceId $pAppsAdvisor.ObjectId -Id $permission.Id | Out-Null
+        ##Application Permissions
+        $appPermission = New-Object -TypeName "Microsoft.Open.AzureAD.Model.ResourceAccess" -ArgumentList $permission.Id,"Role"
 
+        $requiredResources.ResourceAppId = $pAppsAdvisor.AppId
+        $requiredResources.ResourceAccess = $appPermission
+
+        # Creates AzureADApp for PowerAppsChecker
+        $myApp = New-AzureADApplication -DisplayName $appName -ReplyUrls $replyURL -RequiredResourceAccess $requiredResources
+        
         # Define the parameters for the App Client Secret
         $startDate = Get-Date
         $endDate = $startDate.AddYears(1)
