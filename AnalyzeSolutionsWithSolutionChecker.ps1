@@ -253,16 +253,18 @@ Else
 Set-CrmConnectionTimeout -conn $crmSvc -TimeoutInSeconds 300  
 
 # Create fetch query that retrieves all unmanaged solutions and are not of Default Solution
-# Default solution is not supported for export, see: https://docs.microsoft.com/powerapps/maker/common-data-service/import-update-export-solutions#export-solutions
+# Default and managed solutions are not supported for export, see: https://docs.microsoft.com/powerapps/maker/common-data-service/import-update-export-solutions#export-solutions
 $fetch = @"
 <fetch>
     <entity name="solution">
-    <all-attributes />
+    <attribute name = "friendlyname"/>
+    <attribute name = "uniquename"/>
+    <attribute name = "createdby"/>
+    <attribute name = "version"/>
     <filter>
         <condition attribute="ismanaged" operator="eq" value="0"/>
         <condition attribute="isvisible" operator="eq" value="1"/>
-        <condition attribute="friendlyname" operator="not-like" value="Default Solution"/>
-        <condition attribute="friendlyname" operator="not-like" value="Common Data Services Default Solution"/>
+        <condition attribute="solutiontype" operator="eq" value="0"/>
     </filter>
     </entity>
 </fetch>
@@ -291,7 +293,7 @@ foreach($solution in $solutions.CrmRecords)
     Write-Host "Attempting to export "$sName
     try
     {
-        $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.friendlyname -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName"_"$sVersion".zip"
+        $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.uniquename -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName"_"$sVersion".zip"
     }
     catch
     {
