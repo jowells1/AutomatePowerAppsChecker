@@ -5,7 +5,6 @@
 #*******************************************************************************************************
 
 <#
-    
     .SYNOPSIS
         Export all unmanaged solutions from a CDS instance and then submit those files to PowerApps Checker for analysis.  
 
@@ -17,8 +16,39 @@
         Author: Grant Geiszler and Josh Wells
         Contributions by: Bryan Newman
         Credits to: Nishant Rana - https://nishantrana.me/2019/07/12/using-the-powerapps-checker-powershell-module-to-validate-the-solution/
-        More Information: https://powerapps.microsoft.com/en-us/blog/automatically-validate-your-solutions-using-the-powerapps-checker-powershell-module/
+        More Information:   https://powerapps.microsoft.com/en-us/blog/automatically-validate-your-solutions-using-the-powerapps-checker-powershell-module/
+                            https://docs.microsoft.com/en-us/azure/storage/blobs/storage-quickstart-blobs-powershell
  #>
+
+ #****************Install or Import the Various Required Modules****************
+
+# Check to see if the Xrm.Data module exists to export solutions from the instance. If so, import it.  Otherwise, install it.
+if (Get-Module -ListAvailable -Name Microsoft.Xrm.Data.Powershell){
+    Import-Module Microsoft.Xrm.Data.Powershell
+}
+else {
+    Install-Module Microsoft.Xrm.Data.Powershell -AllowClobber -Scope CurrentUser
+    Import-Module Microsoft.Xrm.Data.Powershell
+}
+
+# Check to see if the PowerApps.Checker module exists to analyze the exported solutions from the instance. If so, import it.  Otherwise, install it.
+if (Get-Module -ListAvailable -Name Microsoft.PowerApps.Checker.Powershell){
+    Import-Module Microsoft.PowerApps.Checker.Powershell
+}
+else {
+    Install-Module -Name Microsoft.PowerApps.Checker.Powershell -AllowClobber -Scope CurrentUser
+    Import-Module Microsoft.PowerApps.Checker.Powershell
+}
+
+# Check to see if the Azure Powershell module exists to add a solution to Azure blob. If so, import it.  Otherwise, install it.
+if (Get-Module -ListAvailable -Name Az){
+    Import-Module Az
+}
+else {
+    Install-Module Az -AllowClobber -Scope CurrentUser
+}
+
+#/****************Install or Import the Various Required Modules****************
 
 #****************File Variables****************
 
@@ -54,7 +84,7 @@ $existingFiles = Read-Host "Do you want to analyze existing files? (y/n)"
 $existingFiles = ($existingFiles.Substring(0,1)).ToLower()
             
 # If yes, then skip connectivity prompts 
-If($existingFiles = "y")
+If($existingFiles -eq "y")
 {
 
 }
@@ -71,7 +101,6 @@ Else
     {
         Write-Warning "Only enter the numeric value for the Geo"
         Break
-
     }
     Elseif (-not ($deploymentInt -match '\b([1-2])\b'))
     {
@@ -134,9 +163,7 @@ Else
         Write-Warning "Failed to validate credentials: $ErrorMsg "
         Break
     }
-
 }
-
 #/****************Retrieve Solution Variables****************
 
 #****************PowerApps Checker Ruleset****************
@@ -158,12 +185,11 @@ $scGeoOptions | Sort-Object Name | Format-Table
 # Prompt user for geo option
 $scGeoInt = Read-Host "Enter the number of the appropriate Geo (1-10)"
 
-#Check to if it's numeric and 1 - 10
+# Check to if it's numeric and 1 - 10
 If($scGeoInt -match '[A-z]')
 {
     Write-Warning "Only enter the numeric value for the Geo"
     Break
-
 }
 Elseif (-not ($scGeoInt -match '\b([1-9]|[1][0])\b'))
 {
@@ -184,15 +210,11 @@ Else
         8  {$scGeo = 'Canada' }
         9  {$scGeo = 'SouthAmerica' }
         10 {$scGeo = 'UnitedKingdom' }
-
     }
-    
 }
-
 #/****************PowerApps Checker Ruleset****************
 
 #****************Azure Application ID Variables****************
-
 Clear-Host
 Write-Host "Enter in your Azure Application Information"
 # TenantId of your Azure subscription
@@ -216,35 +238,11 @@ If($clientApplicationId -notmatch '\b([0-9A-z][0-9A-z][0-9A-z][0-9A-z][0-9A-z][0
 }
 
 # Client Application Secret so you don't have to enter in credentials
-$appSecret = Read-Host -AsSecureString "ClientApplicationSecret"
+$secureAppSecret = Read-Host -AsSecureString "ClientApplicationSecret"
 # If you hard code the appSecret, then you need to secure the Client Application Secret
 # $secureAppSecret = ConvertTo-SecureString -String $appSecret -AsPlainText -Force
 
-
 #/****************Azure Application ID Variables****************
-
-
-
-#****************Install or Import the Various Required Modules****************
-
-# Check to see if the Xrm.Data module exists to export solutions from the instance. If so, import it.  Otherwise, install it.
-if (Get-Module -ListAvailable -Name Microsoft.Xrm.Data.Powershell){
-        Import-Module Microsoft.Xrm.Data.Powershell
-}
-else {
-        Install-Module Microsoft.Xrm.Data.Powershell -Scope CurrentUser
-}
-
-
-# Check to see if the PowerApps.Checker module exists to analyze the exported solutions from the instance. If so, import it.  Otherwise, install it.
-if (Get-Module -ListAvailable -Name Microsoft.PowerApps.Checker.Powershell){
-        Import-Module Microsoft.PowerApps.Checker.Powershell
-}
-else {
-        Install-Module -Name Microsoft.PowerApps.Checker.Powershell -Scope CurrentUser
-}
-
-#/****************Install or Import the Various Required Modules****************
 
 #******************************************************************************************************************
 #                              Retrieve and Analysis of Solutions
@@ -252,7 +250,7 @@ else {
 
 #***************************Retrieve All Unmanaged Solutions*******************************************************
 # Check to see if the user opted to use existing files
-If($existingFiles = "y")
+If($existingFiles -eq "y")
 {
     # User opted to analyze existing files. Skipping retrieving of solutions from CDS/D365 
 }
@@ -300,7 +298,7 @@ $fetch = @"
     {
         # Do nothing since it already exists
     }
-    else
+    Else
     {
         New-Item -ItemType Directory -Force -Path $solutionsDirectory
     }
@@ -319,7 +317,6 @@ $fetch = @"
         {
             throw $_
         }
-
     }
 }
 
@@ -344,6 +341,16 @@ foreach($file in $files)
 {
     try
     {   
+        # If the file has spaces, need to replace those with underscores (_)
+        If($file.Name -match " ")
+        {
+            $fileName = ($file.Name).Replace(" ","_")
+            Rename-Item -Path $file.FullName -NewName $fileName
+
+            $fileName = $file.DirectoryName + "\" + $fileName
+            $file = Get-Item -Path $fileName
+        }
+
         # Build directory variables and define CSV file
         $eachSolutionsDirectory = ("{0}{1}{2}" -f $solutionsDirectory, '\', $file.BaseName)
         $resultsFile = ("{0}{1}{2}{3}" -f $eachSolutionsDirectory, "\" , $file.BaseName, "_Results.csv")
@@ -354,17 +361,187 @@ foreach($file in $files)
             #Remove all previous SARIF files
             Get-ChildItem –path $eachSolutionsDirectory –recurse | Remove-Item -Recurse -Force
         }
-        else
+        Else
         {
             $f = New-Item -ItemType Directory -Force -Path $eachSolutionsDirectory
         }
 
-        Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
+        # Check to see if the solution file size is 30MB or larger. If solution size is larger than 30 MB, it must be submitted to PowerApps Checker via SAS URI
+        $fileSize = $file.Length/1MB
 
-        # Send the solution to PowerApps Checker for analysis  
-        $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysis $file.FullName -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $appSecret
+        # If so, prompt that it must be uploaded to a blob storage and ask to continue to try and upload it
+        If($fileSize -gt 30)
+        {
+            # Prompting the user that the file is 30 MB and check if they want to continue to use Blob storage
+            Write-Host "This file size is larger than 30 MB and must be submitted to PowerApps Checker via SAS URI."
+            $useSASURI = Read-Host "Do you want to upload this file to Azure blob? (y/n)"
+            
+            # Only keep the first character and put it to lower
+            $useSASURI = ($useSASURI.Substring(0,1)).ToLower()
+            
+            # If yes, then upload the file to Azure blob.  
+            If($useSASURI -eq "y")
+            {
+                # Predefined Azure Resource Names
+                $storageAccount = "pacsolutions"
+                $resourceGroup = "PowerAppsChecker"
+                $containerName = "paccontainer"
+                $blobName = $file.Name
 
-        Write-Host ("{0}{1}" -f "Analysis completed for ", $file.BaseName)
+                If(!$creds)
+                {
+                    # Prompt for user credentials
+                    Try{
+                        $creds = Get-Credential ""
+                    }
+                    Catch
+                    {
+                        $ErrorMsg = $_.Exception.Message
+                        Write-Warning "Failed to validate credentials: $ErrorMsg "
+                        Break
+                    }
+                }
+
+                # Sign into Azure subscription
+                $sub = Connect-AzAccount -Credential $creds
+
+                # Set the Azure location
+                $azLocation = Get-AzLocation | select Location  | Sort-Object Location
+                for($i=0;$i-le $azLocation.length-1;$i++)
+                {
+                    "{0}      {1}" -f ($i+1), $azLocation[$i].Location
+                }
+
+                $rLocation = Read-Host ("Enter the number for the appropriate Azure StorageAccount location (1-{0})" -f ($azLocation.Count))
+
+                # Check to if it's numeric 
+                If($rLocation -match '[A-z]')
+                {
+                    Write-Warning "Only enter the numeric value for the Location"
+                    Break
+                }
+                # Check to if it's 1 - 40
+                Elseif (-not ($rLocation -match '\b([1-9]|[1-3][0-9]|[4][0])\b'))
+                {
+                    Write-Warning "Only values 1-40 are expected"
+                    Break
+                }
+                # Passing validation, we'll set the location value
+                Else
+                {
+                    $location = $azLocation[($rLocation-1)].Location
+                }
+
+                # You must retrieve all StorageAccounts as the Get-AzStorageAccount command requires ResourceGroup. The StorageAccount may not be within the defined ResourceGroup    
+                $azAllStorageAccount = Get-AzStorageAccount -ErrorAction SilentlyContinue
+
+                # Iterate through each StorageAccount to determine if the account exists already
+                foreach($azStorageAccount in $azAllStorageAccount)
+                {
+                    # Check to see if the StorageAccount already exists
+                    If($azStorageAccount.StorageAccountName = $storageAccount) {break}
+                    {
+                        # StorageAccount exists, break out of the loop and use that storage Account
+                    }
+                    Else
+                    {
+                        # Check to see if the Resource Group exists before creating it
+                        If($azResourceGroup = Get-AzResourceGroup -Name $resourceGroup -ErrorAction SilentlyContinue)
+                        {
+                            # ResourceGroup exists so use existing ResourceGroup
+                        }
+                        Else
+                        {
+                            $azResourceGroup = New-AzResourceGroup -Name $resourceGroup -Location $location
+                        }
+
+                        # Create the storage account
+                        $azStorageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroup `
+                            -Name $storageAccount `
+                            -SkuName Standard_LRS `
+                            -Location $location `
+                            -Kind StorageV2 `
+                            -AccessTier Hot `
+                    }
+                }
+ 
+                # Set the context for the StorageAccount
+                $ctx = $azStorageAccount.Context
+
+                # Check to see if the Container exists before creating it
+                If($azContainerName = Get-AzStorageContainer -Name $containerName -Context $ctx -ErrorAction SilentlyContinue)
+                {
+                    # Container exists so use existing Container
+                }
+                Else
+                {
+                    # Create a container
+                    $azContainerName = New-AzStorageContainer -Name $containerName -Context $ctx -Permission blob
+                }
+                
+                Clear-Host
+                Write-Host "Uploading solution to blob storage"
+
+                # Upload the solution file to the blob storage
+                Set-AzStorageBlobContent `
+                    -File $file.FullName `
+                    -Container $containerName `
+                    -Blob $blobName `
+                    -Context $ctx | Out-Null
+
+                # Create a SAS token with read/write blob permission
+                $sasURI = New-AzStorageBlobSASToken -Container $containerName -Context $ctx -Blob $blobName -Permission rw -FullUri
+                Write-Host "Solution uploaded successfully and token created: " + $sasURI
+                Write-Host ""
+                Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
+
+                # Send the solution to PowerApps Checker for analysis  
+                $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysisSasUri $sasURI -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $secureAppSecret
+
+                Write-Host ("{0}{1}" -f "Analysis completed for ", $file.BaseName)
+            }
+            # Otherwise, prompt to use an existing SAS URI
+            ElseIf($useSASURI -eq "n")
+            {
+                $useExistSAS = Read-Host "Do you have an existing SAS URI you want to use? (y/n)"
+                If($useExistSAS -eq "y")
+                {
+                    $sasURI = Read-Host "Enter in full SAS URI"
+
+                    Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
+
+                    # Send the solution to PowerApps Checker for analysis  
+                    $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysisSasUri $sasURI -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $secureAppSecret
+
+                    Write-Host ("{0}{1}" -f "Analysis completed for ", $file.BaseName)
+                }
+                ElseIf($useExistSAS -eq "n")
+                {
+                    Write-Host "Since file size is > 30MB, skipping processing of this file"
+                    Break
+                }
+                Else
+                {
+                    Write-Host "You must only enter 'y' or 'n'"
+                    Break
+                }
+            }
+            Else
+            {
+                Write-Host "You must only enter 'y' or 'n'"
+                Break
+            }
+        }
+        # File is under 30MB and can submit it from the local location
+        Else
+        {
+            Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
+
+            # Send the solution to PowerApps Checker for analysis  
+            $checkerResults = Invoke-PowerAppsChecker -FileUnderAnalysis $file.FullName -Ruleset $rules -OutputDirectory $eachSolutionsDirectory -ClientApplicationId $clientApplicationId -TenantId $tenantId -ClientApplicationSecret $secureAppSecret
+
+            Write-Host ("{0}{1}" -f "Analysis completed for ", $file.BaseName)
+        }
 
         # Build an array for each sarif file
         $sarif = Get-ChildItem -Path $eachSolutionsDirectory -File -Filter *.zip
@@ -431,7 +608,6 @@ foreach($file in $files)
                 }
 
                 $newRow = New-Object PSObject -Property $rowValues
-
                 Export-Csv $resultsFile -InputObject $newRow  -Append -Force
             }
         }
