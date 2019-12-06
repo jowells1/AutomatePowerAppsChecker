@@ -47,79 +47,94 @@ Else
 # $crmUrl = "Instance URL (https://INSTANCE.crm.dynamics.com"
 Clear-Host
 
-# Need to determine if it's an online or an on-premises environment so we connect and authenticate properly
-$deploymentOption = @{1 ="Online"; 2 = "On-premises"}
-Write-Host "Is your Dynamics CRM/365 or PowerApps instance online or on-premises"
-$deploymentOption | Sort-Object Name | Format-Table
-$deploymentInt = Read-Host "Enter the number of the appropriate deployment option (1 or 2)"
+#Validate if they want to retrieve a solution from CDS/D365 or simply analyze existing solution files in a folder
+$existingFiles = Read-Host "Do you want to analyze existing files? (y/n)"
 
-#Check to if it's numeric and a 1 or 2.
-If($deploymentInt -match '[A-z]')
+# Only keep the first character and put it to lower
+$existingFiles = ($existingFiles.Substring(0,1)).ToLower()
+            
+# If yes, then skip connectivity prompts 
+If($existingFiles = "y")
 {
-    Write-Warning "Only enter the numeric value for the Geo"
-    Break
 
 }
-Elseif (-not ($deploymentInt -match '\b([1-2])\b'))
+Else
 {
-    Write-Warning "Only values 1-2 are expected"
-    Break
-}
-Else # Need to validate the URL format is expected
-{
-    Clear-Host
-    # Ask for the full instance URL
-    Write-Host "Instance URL should include the whole URL. Example: https://INSTANCE.crm.dynamics.com"
-    $crmUrl = Read-Host "Instance URL (https://INSTANCE.crm.dynamics.com)"
+    # Need to determine if it's an online or an on-premises environment so we connect and authenticate properly
+    $deploymentOption = @{1 ="Online"; 2 = "On-premises"}
+    Write-Host "Is your Dynamics CRM/365 or PowerApps instance online or on-premises"
+    $deploymentOption | Sort-Object Name | Format-Table
+    $deploymentInt = Read-Host "Enter the number of the appropriate deployment option (1 or 2)"
 
-    # Validate the proper URL format based on the deployment type.  If it's online, it should be https and ends in dynamics.com.  If it's on-premises, just need to validate that it's prefixed with http(s)://
-    If($deploymentInt -eq 1)
+    #Check to if it's numeric and a 1 or 2.
+    If($deploymentInt -match '[A-z]')
     {
-        # Check to see if the folder is a full directory path.  If not, then fail out
-        If($crmUrl -match 'https://.*.dynamics.com')
+        Write-Warning "Only enter the numeric value for the Geo"
+        Break
+
+    }
+    Elseif (-not ($deploymentInt -match '\b([1-2])\b'))
+    {
+        Write-Warning "Only values 1-2 are expected"
+        Break
+    }
+    Else # Need to validate the URL format is expected
+    {
+        Clear-Host
+        # Ask for the full instance URL
+        Write-Host "Instance URL should include the whole URL. Example: https://INSTANCE.crm.dynamics.com"
+        $crmUrl = Read-Host "Instance URL (https://INSTANCE.crm.dynamics.com)"
+
+        # Validate the proper URL format based on the deployment type.  If it's online, it should be https and ends in dynamics.com.  If it's on-premises, just need to validate that it's prefixed with http(s)://
+        If($deploymentInt -eq 1)
         {
-            # Instance URL is the full URL, continue on
+            # Check to see if the folder is a full directory path.  If not, then fail out
+            If($crmUrl -match 'https://.*.dynamics.com')
+            {
+                # Instance URL is the full URL, continue on
+            }
+            Else
+            {
+                Write-Warning "Enter the full instance URL.  Expected format is https://INSTANCE.crm.dynamics.com"
+                Break
+            }
         }
         Else
         {
-            Write-Warning "Enter the full instance URL.  Expected format is https://INSTANCE.crm.dynamics.com"
-            Break
+            # Check to see if the folder is a full directory path.  If not, then fail out
+            If($crmUrl -match 'http.*://.*')
+            {
+                # Instance URL is the full URL, continue on
+            }
+            Else
+            {
+                Write-Warning "Enter the full instance URL.  Expected format is https://INSTANCE.domain.com"
+                Break
+            }
         }
     }
-    Else
+
+    # User to connect to Dynamics 365
+    # If you want to bypass the login screen, hard code your credentials below
+    # $user = "USER@DOMAIN.onmicrosoft.com"
+    # User's password
+    # $pwd = "PASSWORD"
+    # If you hard code credentials, you need to convert password to secure string
+    # $securePwd = ConvertTo-SecureString -String $pwd -AsPlainText -Force
+    # If you hard code credentials, need to convert it into a credential object
+    # $creds = New-Object System.Management.Automation.PSCredential ($user, $securePwd)
+
+    # Prompt for user credentials
+    Try{
+        $creds = Get-Credential ""
+    }
+    Catch
     {
-        # Check to see if the folder is a full directory path.  If not, then fail out
-        If($crmUrl -match 'http.*://.*')
-        {
-            # Instance URL is the full URL, continue on
-        }
-        Else
-        {
-            Write-Warning "Enter the full instance URL.  Expected format is https://INSTANCE.domain.com"
-            Break
-        }
+        $ErrorMsg = $_.Exception.Message
+        Write-Warning "Failed to validate credentials: $ErrorMsg "
+        Break
     }
-}
 
-# User to connect to Dynamics 365
-# If you want to bypass the login screen, hard code your credentials below
-# $user = "USER@DOMAIN.onmicrosoft.com"
-# User's password
-# $pwd = "PASSWORD"
-# If you hard code credentials, you need to convert password to secure string
-# $securePwd = ConvertTo-SecureString -String $pwd -AsPlainText -Force
-# If you hard code credentials, need to convert it into a credential object
-# $creds = New-Object System.Management.Automation.PSCredential ($user, $securePwd)
-
-# Prompt for user credentials
-Try{
-    $creds = Get-Credential ""
-}
-Catch
-{
-    $ErrorMsg = $_.Exception.Message
-    Write-Warning "Failed to validate credentials: $ErrorMsg "
-    Break
 }
 
 #/****************Retrieve Solution Variables****************
@@ -236,68 +251,75 @@ else {
 #******************************************************************************************************************
 
 #***************************Retrieve All Unmanaged Solutions*******************************************************
-Clear-Host
-Write-Host ("{0}{1}{2}" -f "Connecting to ", $crmUrl, " to retrieve solution files")
-
-# Connect to Dynamics 365 service. If deploymentInt is 1, connect online.  Otherwise, connect onprem
-If($deploymentInt -eq 1)
+# Check to see if the user opted to use existing files
+If($existingFiles = "y")
 {
-    $crmSvc = Connect-CrmOnline -Credential $creds -ServerUrl $crmUrl
+    # User opted to analyze existing files. Skipping retrieving of solutions from CDS/D365 
 }
 Else
 {
-    $crmSvc =  Connect-CrmOnPremDiscovery -Credential $creds -ServerUrl $crmUrl 
-}
+    Clear-Host
+    Write-Host ("{0}{1}{2}" -f "Connecting to ", $crmUrl, " to retrieve solution files")
 
-# Extend the timeout to allow more time if larger solutions are being extracted
-Set-CrmConnectionTimeout -conn $crmSvc -TimeoutInSeconds 300  
+    # Connect to Dynamics 365 service. If deploymentInt is 1, connect online.  Otherwise, connect onprem
+    If($deploymentInt -eq 1)
+    {
+        $crmSvc = Connect-CrmOnline -Credential $creds -ServerUrl $crmUrl
+    }
+    Else
+    {
+        $crmSvc =  Connect-CrmOnPremDiscovery -Credential $creds -ServerUrl $crmUrl 
+    }
 
-# Create fetch query that retrieves all unmanaged solutions and are not of Default Solution
-# Default and managed solutions are not supported for export, see: https://docs.microsoft.com/powerapps/maker/common-data-service/import-update-export-solutions#export-solutions
+    # Extend the timeout to allow more time if larger solutions are being extracted
+    Set-CrmConnectionTimeout -conn $crmSvc -TimeoutInSeconds 300  
+
+    # Create fetch query that retrieves all unmanaged solutions and are not of Default Solution
+    # Default solution is not supported for export, see: https://docs.microsoft.com/powerapps/maker/common-data-service/import-update-export-solutions#export-solutions
 $fetch = @"
 <fetch>
     <entity name="solution">
-    <attribute name = "friendlyname"/>
-    <attribute name = "uniquename"/>
-    <attribute name = "createdby"/>
-    <attribute name = "version"/>
+    <all-attributes />
     <filter>
         <condition attribute="ismanaged" operator="eq" value="0"/>
         <condition attribute="isvisible" operator="eq" value="1"/>
-        <condition attribute="solutiontype" operator="eq" value="0"/>
+        <condition attribute="friendlyname" operator="not-like" value="Default Solution"/>
+        <condition attribute="friendlyname" operator="not-like" value="Common Data Services Default Solution"/>
     </filter>
     </entity>
 </fetch>
 "@
 
-# Execute Fetch query that retrieves all unmanaged solutions
-$solutions = Get-CrmRecordsByFetch -conn $crmSvc -Fetch $fetch
+    # Execute Fetch query that retrieves all unmanaged solutions
+    $solutions = Get-CrmRecordsByFetch -conn $crmSvc -Fetch $fetch
 
-Write-Host ("{0}{1}{2}" -f "Retrieved ", $solutions.Count, " solution files")
+    Write-Host ("{0}{1}{2}" -f "Retrieved ", $solutions.Count, " solution files")
 
-# Create a directory to output the solution to
-If(Test-Path $solutionsDirectory)
-{
-    # Do nothing since it already exists
-}
-else
-{
-    New-Item -ItemType Directory -Force -Path $solutionsDirectory
-}
-
-# Export all unmanaged solutions to the $solutionsDirectory
-foreach($solution in $solutions.CrmRecords)
-{
-    $sName = $solution.friendlyname
-    $sVersion = ($solution.version).Replace(".", "_")
-    Write-Host "Attempting to export "$sName
-    try
+    # Create a directory to output the solution to
+    If(Test-Path $solutionsDirectory)
     {
-        $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.uniquename -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName"_"$sVersion".zip"
+        # Do nothing since it already exists
     }
-    catch
+    else
     {
-        throw $_
+        New-Item -ItemType Directory -Force -Path $solutionsDirectory
+    }
+
+    # Export all unmanaged solutions to the $solutionsDirectory
+    foreach($solution in $solutions.CrmRecords)
+    {
+        $sName = $solution.friendlyname
+        $sVersion = ($solution.version).Replace(".", "_")
+        Write-Host "Attempting to export "$sName
+        try
+        {
+            $s = Export-CrmSolution -conn $crmSvc -SolutionName $solution.friendlyname -SolutionFilePath $solutionsDirectory -SolutionZipFileName $sName"_"$sVersion".zip"
+        }
+        catch
+        {
+            throw $_
+        }
+
     }
 }
 
