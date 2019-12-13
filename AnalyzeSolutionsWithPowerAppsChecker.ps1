@@ -407,24 +407,6 @@ foreach($file in $files)
                 # Sign into Azure subscription
                 $sub = Connect-AzAccount -Credential $creds
 
-                # Check to if it's numeric 
-                If($rLocation -match '[A-z]')
-                {
-                    Write-Warning "Only enter the numeric value for the Location"
-                    Break
-                }
-                # Check to if it's 1 - 40
-                Elseif (-not ($rLocation -match '\b([1-9]|[1-3][0-9]|[4][0])\b'))
-                {
-                    Write-Warning "Only values 1-40 are expected"
-                    Break
-                }
-                # Passing validation, we'll set the location value
-                Else
-                {
-                    $location = $azLocation[($rLocation-1)].Location
-                }
-
                 # You must retrieve all StorageAccounts as the Get-AzStorageAccount command requires ResourceGroup. The StorageAccount may not be within the defined ResourceGroup    
                 $azAllStorageAccount = Get-AzStorageAccount -ErrorAction SilentlyContinue
 
