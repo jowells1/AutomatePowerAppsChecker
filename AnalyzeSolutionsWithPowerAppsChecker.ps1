@@ -407,15 +407,6 @@ foreach($file in $files)
                 # Sign into Azure subscription
                 $sub = Connect-AzAccount -Credential $creds
 
-                # Set the Azure location
-                $azLocation = Get-AzLocation | select Location  | Sort-Object Location
-                for($i=0;$i-le $azLocation.length-1;$i++)
-                {
-                    "{0}      {1}" -f ($i+1), $azLocation[$i].Location
-                }
-
-                $rLocation = Read-Host ("Enter the number for the appropriate Azure StorageAccount location (1-{0})" -f ($azLocation.Count))
-
                 # Check to if it's numeric 
                 If($rLocation -match '[A-z]')
                 {
@@ -455,6 +446,36 @@ foreach($file in $files)
                         Else
                         {
                             $azResourceGroup = New-AzResourceGroup -Name $resourceGroup -Location $location
+                        }
+
+						Write-Host "No existing Storage Account can be found. Creating new Storage Account."
+                        
+                        # Set the Azure location
+                        Write-Host "What Azure datacenter do you want the file to exist in?"
+						$azLocation = Get-AzLocation | select Location  | Sort-Object Location
+                        for($i=0;$i-le $azLocation.length-1;$i++)
+                        {
+                            "{0}      {1}" -f ($i+1), $azLocation[$i].Location
+                        }
+
+                        $rLocation = Read-Host ("Enter the number for the appropriate Azure StorageAccount location (1-{0})" -f ($azLocation.Count))
+
+                        # Check to if it's numeric 
+                        If($rLocation -match '[A-z]')
+                        {
+                            Write-Warning "Only enter the numeric value for the Location"
+                            Break
+                        }
+                        # Check to if it's 1 - 40
+                        Elseif (-not ($rLocation -match '\b([1-9]|[1-3][0-9]|[4][0])\b'))
+                        {
+                            Write-Warning "Only values 1-40 are expected"
+                            Break
+                        }
+                        # Passing validation, we'll set the location value
+                        Else
+                        {
+                            $location = $azLocation[($rLocation-1)].Location
                         }
 
                         # Create the storage account
