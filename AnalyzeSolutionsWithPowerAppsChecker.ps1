@@ -277,12 +277,14 @@ Else
 $fetch = @"
 <fetch>
     <entity name="solution">
-    <all-attributes />
+    <attribute name = "friendlyname"/>
+    <attribute name = "uniquename"/>
+    <attribute name = "createdby"/>
+    <attribute name = "version"/>
     <filter>
         <condition attribute="ismanaged" operator="eq" value="0"/>
         <condition attribute="isvisible" operator="eq" value="1"/>
-        <condition attribute="friendlyname" operator="not-like" value="Default Solution"/>
-        <condition attribute="friendlyname" operator="not-like" value="Common Data Services Default Solution"/>
+        <condition attribute="solutiontype" operator="eq" value="0"/>
     </filter>
     </entity>
 </fetch>
