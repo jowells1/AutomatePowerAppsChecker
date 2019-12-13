@@ -91,9 +91,17 @@ If($existingFiles -eq "y")
 Else
 {
     # Need to determine if it's an online or an on-premises environment so we connect and authenticate properly
-    $deploymentOption = @{1 ="Online"; 2 = "On-premises"}
+    $deploymentOption = "Online", "On-premises"
     Write-Host "Is your Dynamics CRM/365 or PowerApps instance online or on-premises"
-    $deploymentOption | Sort-Object Name | Format-Table
+    Write-Host ""
+    
+    # Prompt user for geo option
+    for($i=0;$i-le $deploymentOption.length-1;$i++)
+    {
+        "{0}      {1}" -f ($i+1), $deploymentOption[$i]
+    }
+
+    Write-Host ""
     $deploymentInt = Read-Host "Enter the number of the appropriate deployment option (1 or 2)"
 
     #Check to if it's numeric and a 1 or 2.
@@ -176,14 +184,18 @@ Else
 Clear-Host
 
 # Create an array for the geo options for PowerApps Checker
-$scGeoOptions = @{1 ="PreviewUnitedStates"; 2 = "UnitedStates"; 3 = "Europe"; 4 = "Asia"; 5 = "Australia"; 6 = "Japan"; 7 = "India"; 8 = "Canada"; 9 = "SouthAmerica"; 10 = "UnitedKingdom"}
+$scGeoOptions = "PreviewUnitedStates", "UnitedStates", "Europe", "Asia", "Australia", "Japan", "India", "Canada", "SouthAmerica", "UnitedKingdom"
 Write-Host "Choose the PowerApps Checker Geo."
-
-# Output the array into a table format
-$scGeoOptions | Sort-Object Name | Format-Table
+Write-Host ""
 
 # Prompt user for geo option
-$scGeoInt = Read-Host "Enter the number of the appropriate Geo (1-10)"
+for($i=0;$i-le $scGeoOptions.length-1;$i++)
+{
+    "{0}      {1}" -f ($i+1), $scGeoOptions[$i]
+}
+
+Write-Host ""
+$scGeoInt = Read-Host ("Enter the number of the appropriate Geo (1-{0})" -f ($scGeoOptions.Count))
 
 # Check to if it's numeric and 1 - 10
 If($scGeoInt -match '[A-z]')
@@ -198,19 +210,7 @@ Elseif (-not ($scGeoInt -match '\b([1-9]|[1][0])\b'))
 }
 Else
 {
-    switch ($scGeoInt)
-    {
-        1  {$scGeo = 'PreviewUnitedStates' }
-        2  {$scGeo = 'UnitedStates' }
-        3  {$scGeo = 'Europe' }
-        4  {$scGeo = 'Asia' }
-        5  {$scGeo = 'Australia' }
-        6  {$scGeo = 'Japan' }
-        7  {$scGeo = 'India' }
-        8  {$scGeo = 'Canada' }
-        9  {$scGeo = 'SouthAmerica' }
-        10 {$scGeo = 'UnitedKingdom' }
-    }
+    $scGeo = $scGeoOptions[($scGeoInt-1)]
 }
 #/****************PowerApps Checker Ruleset****************
 
