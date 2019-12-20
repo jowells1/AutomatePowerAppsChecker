@@ -262,7 +262,7 @@ Else
     # Connect to Dynamics 365 service. If deploymentInt is 1, connect online.  Otherwise, connect onprem
     If($deploymentInt -eq 1)
     {
-        $crmSvc = Connect-CrmOnline -Credential $creds -ServerUrl $crmUrl
+        $crmSvc = Connect-CrmOnline -Credential $creds -ServerUrl $crmUrl -ForceoAuth
     }
     Else
     {
