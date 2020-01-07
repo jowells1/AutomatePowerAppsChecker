@@ -240,7 +240,7 @@ If($clientApplicationId -notmatch '\b([0-9A-z][0-9A-z][0-9A-z][0-9A-z][0-9A-z][0
 # Client Application Secret so you don't have to enter in credentials
 $secureAppSecret = Read-Host -AsSecureString "ClientApplicationSecret"
 # If you hard code the appSecret, then you need to secure the Client Application Secret
-# $secureAppSecret = ConvertTo-SecureString -String $appSecret -AsPlainText -Force
+# $secureAppSecret = ConvertTo-SecureString -String $secureAppSecret -AsPlainText -Force
 
 #/****************Azure Application ID Variables****************
 
@@ -390,84 +390,122 @@ foreach($file in $files)
                 $containerName = "paccontainer"
                 $blobName = $file.Name
 
-                If(!$creds)
+                # If there are existing credentials, need to verify they want to use the same account to upload to Azure Blob
+                If($creds)
                 {
-                    # Prompt for user credentials
-                    Try{
-                        $creds = Get-Credential ""
-                    }
-                    Catch
-                    {
-                        $ErrorMsg = $_.Exception.Message
-                        Write-Warning "Failed to validate credentials: $ErrorMsg "
-                        Break
-                    }
-                }
+                   # Prompt user to use existing Azure account
+                   $currentSub = Read-Host "Do you want to use the following Azure account?(y/n) "$creds.UserName
+                   
+                   # Only keep the first character and put it to lower
+                   $currentSub = ($currentSub.Substring(0,1)).ToLower()
 
-                # Sign into Azure subscription
-                $sub = Connect-AzAccount -Credential $creds
-
-                # You must retrieve all StorageAccounts as the Get-AzStorageAccount command requires ResourceGroup. The StorageAccount may not be within the defined ResourceGroup    
-                $azAllStorageAccount = Get-AzStorageAccount -ErrorAction SilentlyContinue
-
-                # Iterate through each StorageAccount to determine if the account exists already
-                foreach($azStorageAccount in $azAllStorageAccount)
-                {
-                    # Check to see if the StorageAccount already exists
-                    If($azStorageAccount.StorageAccountName = $storageAccount) {break}
-                    {
-                        # StorageAccount exists, break out of the loop and use that storage Account
+                   # Connect Azure with the supplied credentials
+                    ### Improvement, need to be able to handle MFA
+                   If($currentSub -eq 'y')
+                   {
+                       # Sign into Azure subscription
+                       $sub = Connect-AzAccount -Credential $creds
                     }
                     Else
                     {
-                        # Check to see if the Resource Group exists before creating it
-                        If($azResourceGroup = Get-AzResourceGroup -Name $resourceGroup -ErrorAction SilentlyContinue)
-                        {
-                            # ResourceGroup exists so use existing ResourceGroup
-                        }
-                        Else
-                        {
-                            $azResourceGroup = New-AzResourceGroup -Name $resourceGroup -Location $location
-                        }
-
-						Write-Host "No existing Storage Account can be found. Creating new Storage Account."
-                        
-                        # Set the Azure location
-                        Write-Host "What Azure datacenter do you want the file to exist in?"
-						$azLocation = Get-AzLocation | select Location  | Sort-Object Location
-                        for($i=0;$i-le $azLocation.length-1;$i++)
-                        {
-                            "{0}      {1}" -f ($i+1), $azLocation[$i].Location
-                        }
-
-                        $rLocation = Read-Host ("Enter the number for the appropriate Azure StorageAccount location (1-{0})" -f ($azLocation.Count))
-
-                        # Check to if it's numeric 
-                        If($rLocation -match '[A-z]')
-                        {
-                            Write-Warning "Only enter the numeric value for the Location"
-                            Break
-                        }
-                        # Check to if it's 1 - 40
-                        Elseif (-not ($rLocation -match '\b([1-9]|[1-3][0-9]|[4][0])\b'))
-                        {
-                            Write-Warning "Only values 1-40 are expected"
-                            Break
-                        }
-                        # Passing validation, we'll set the location value
-                        Else
-                        {
-                            $location = $azLocation[($rLocation-1)].Location
-                        }
-
-                        # Create the storage account
-                        $azStorageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroup `
-                            -Name $storageAccount `
-                            -SkuName Standard_LRS `
-                            -Location $location `
-                            -Kind StorageV2 `
-                            -AccessTier Hot `
+                        # Default all other entries to No
+                        $currentSub = 'n'
                     }
+                }
+                Else
+                {
+                    # Since credentials do not already exist, will set this to No
+                    $currentSub = 'n'
+                }
+
+                # Since credentials don't exist or the user wants to use a different account, prompt to connect to Azure
+                If($currentSub -eq 'n')
+                {
+                    try
+                    {
+                        # If you were previously connected to Azure, it will continue to use that connection so need to disconnect first
+                        Disconnect-AzAccount | Out-Null
+
+                        # Prompt for Azure connection so it will handle MFA and other prompts
+                        $sub = Connect-AzAccount 
+                    }
+                    catch
+                    {
+                        throw $_
+                    }
+                }
+
+                # You must retrieve all StorageAccounts as the Get-AzStorageAccount command requires ResourceGroup. The StorageAccount may not be within the defined ResourceGroup    
+                $azAllStorageAccount = Get-AzStorageAccount -ErrorAction SilentlyContinue
+                $saExists = $false
+                $azStorageAccount = ""
+                
+                # After retrieving all of the Storage Accounts, need to see if the Storage Account already exists
+                If($azAllStorageAccount -ne $null)
+                {
+                    # Iterate through each StorageAccount to determine if the account exists already
+                    foreach($azSA in $azAllStorageAccount)
+                    {
+                        # Check to see if the StorageAccount already exists
+                        If($azSA.StorageAccountName = $storageAccount)
+                        {
+                            # StorageAccount exists, break out of the loop and use that storage Account
+                            $saExists = $true
+                            $azStorageAccount = $azSA
+                        }
+                     }
+                }
+
+                # Storage Account doesn't exists so need to create it
+                If($saExists -eq $false)
+                {
+                    # Set the Azure location
+                    Write-Host "What Azure datacenter do you want the file to exist in?"
+					$azLocation = Get-AzLocation | select Location  | Sort-Object Location
+                    for($i=0;$i-le $azLocation.length-1;$i++)
+                    {
+                        "{0}      {1}" -f ($i+1), $azLocation[$i].Location
+                    }
+
+                    $rLocation = Read-Host ("Enter the number for the appropriate Azure StorageAccount location (1-{0})" -f ($azLocation.Count))
+
+                    # Check to if it's numeric 
+                    If($rLocation -match '[A-z]')
+                    {
+                        Write-Warning "Only enter the numeric value for the Location"
+                        Break
+                    }
+                    # Check to if it's 1 - 40
+                    Elseif (-not ($rLocation -match '\b([1-9]|[1-3][0-9]|[4][0])\b'))
+                    {
+                        Write-Warning "Only values 1-40 are expected"
+                        Break
+                    }
+                    # Passing validation, we'll set the location value
+                    Else
+                    {
+                        $location = $azLocation[($rLocation-1)].Location
+                    }
+
+                    # Check to see if the Resource Group exists before creating it
+                    If($azResourceGroup = Get-AzResourceGroup -Name $resourceGroup -ErrorAction SilentlyContinue)
+                    {
+                        # ResourceGroup exists so use existing ResourceGroup
+                    }
+                    Else
+                    {
+                        $azResourceGroup = New-AzResourceGroup -Name $resourceGroup -Location $location
+                    }
+
+					Write-Host "No existing Storage Account can be found. Creating new Storage Account."
+                        
+                    # Create the storage account
+                    $azStorageAccount = New-AzStorageAccount -ResourceGroupName $resourceGroup `
+                        -Name $storageAccount `
+                        -SkuName Standard_LRS `
+                        -Location $location `
+                        -Kind StorageV2 `
+                        -AccessTier Hot `
                 }
  
                 # Set the context for the StorageAccount
@@ -496,7 +534,7 @@ foreach($file in $files)
 
                 # Create a SAS token with read/write blob permission
                 $sasURI = New-AzStorageBlobSASToken -Container $containerName -Context $ctx -Blob $blobName -Permission rw -FullUri
-                Write-Host "Solution uploaded successfully and token created: " + $sasURI
+                Write-Host "Solution uploaded successfully and token created: "$sasURI
                 Write-Host ""
                 Write-Host ("{0}{1}{2}" -f "Submitting ", $file.BaseName, " solution to PowerApps Checker for analysis")
 
